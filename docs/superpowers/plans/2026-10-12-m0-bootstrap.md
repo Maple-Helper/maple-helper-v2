@@ -307,8 +307,6 @@ def test_a_checkout_at_another_commit_is_reset(tmp_path):
     target = tmp_path / "v1"
     v1.ensure_checkout(target)
     (target / "maplehelper" / "__init__.py").write_text("tampered", encoding="utf-8")
-    subprocess.run(["git", "commit", "-qam", "tamper", "--no-verify", "-c", "user.name=t", "-c", "user.email=t@t"],
-                   cwd=target, check=False)
     subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "tamper"], cwd=target, check=True)
     assert v1.head(target) != v1.V1_COMMIT
     v1.ensure_checkout(target)
@@ -390,8 +388,6 @@ def import_path(path: Path = V1_DIR) -> Path:
 if __name__ == "__main__":
     print(ensure_checkout())
 ```
-
-Remove the first, no-op `subprocess.run([... "--no-verify" ...], check=False)` line from `test_a_checkout_at_another_commit_is_reset`. It is redundant with the line after it; keep only the `check=True` commit line.
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
@@ -539,7 +535,7 @@ def import_files(v1_dir: Path, root: Path) -> dict[str, str]:
         manifest[key] = _sha(dst)
     out = root / MANIFEST
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(dict(sorted(manifest.items())), indent=1) + "\n", encoding="utf-8")
+    out.write_text(json.dumps(dict(sorted(manifest.items())), indent=1) + "\n", encoding="utf-8", newline="\n")
     return manifest
 
 
@@ -798,7 +794,7 @@ def _render() -> dict[str, str]:
             continue
         constants, unsupported = {}, []
         for attr, value in vars(mod).items():
-            if not _NAME.match(attr) or callable(value) and not isinstance(value, re.Pattern):
+            if not _NAME.match(attr) or callable(value):
                 continue
             try:
                 constants[attr] = encode(value)
@@ -1960,6 +1956,8 @@ Expected: all tests pass, including `all_three_version_files_agree`.
 
 Run: `npm run tauri build -- --debug --no-bundle`
 Expected: builds `target/debug/Maple Helper.exe` (Windows) or `target/debug/Maple Helper` (macOS).
+
+If the bundler rejects `mainBinaryName` containing a space, stop and report it. v1's executable is `Maple Helper.exe`, and the bridge (M9) relies on that name for shortcuts, so do not rename it silently.
 
 Run the binary, then launch it a second time.
 Expected: a 600×640 frameless, transparent, always-on-top window shows "Maple Helper" and "v0.1.0" in Rubik. The second launch focuses the first window instead of opening another. Close it.
